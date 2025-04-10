@@ -83,7 +83,7 @@ fun HomeScreen(navController: NavHostController) {
                             onClick = null
                         )
                         Text(
-                            text = option.name.replaceFirstChar { it.uppercase() },
+                            text = option.name,
                             color = Color.Black
                         )
                     }
