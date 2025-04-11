@@ -1,26 +1,26 @@
 package com.lucas.visorpdf.navigaton
 
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import com.lucas.visorpdf.model.Pdfs
 import com.lucas.visorpdf.ui.HomeScreen
 import com.lucas.visorpdf.ui.PdfScreen
 
 @Composable
-fun Navigation() {
-    val navController: NavHostController = rememberNavController()
-
+fun Navigation(renderedPdfs: Map<String, List<Bitmap>>, navController: NavHostController) {
+    // Pantalla principal y a la que se navegara al clickar el boton Home
     NavHost(navController = navController, startDestination = "HomeScreen") {
         composable("HomeScreen") {
             HomeScreen(navController)
         }
+        // Pdf al que se navegara una vez seleccionado por su nombre
         composable("PdfScreen/{option}") { backStackEntry ->
             val optionString = backStackEntry.arguments?.getString("option") ?: ""
             val option = Pdfs.getByName(optionString)
-            PdfScreen(option, navController)
+            PdfScreen(option, renderedPdfs, navController)
         }
     }
 }

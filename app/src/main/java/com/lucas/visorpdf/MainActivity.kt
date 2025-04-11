@@ -4,8 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.rememberNavController
 import com.lucas.visorpdf.navigaton.Navigation
+import com.lucas.visorpdf.ui.PdfRender
 import com.lucas.visorpdf.ui.theme.VisorPDFTheme
+import com.lucas.visorpdf.viewModel.PdfViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -13,7 +17,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             VisorPDFTheme {
-                Navigation()
+                val navController = rememberNavController()
+                val pdfViewModel: PdfViewModel = viewModel()
+
+                // Se llama a la pantalla de carga si no estan cargados
+                if (pdfViewModel.renderedPdfs.value.isEmpty()) {
+                    PdfRender(viewModel = pdfViewModel) { result ->
+                        // Guardar PDFs renderizados en el ViewModel
+                        pdfViewModel.renderedPdfs.value = result
+                    }
+                } else {
+                    // Mostrar los PDFs renderizados
+                    Navigation(pdfViewModel.renderedPdfs.value, navController)
+                }
             }
         }
     }

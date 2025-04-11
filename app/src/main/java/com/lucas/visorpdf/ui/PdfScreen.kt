@@ -1,9 +1,6 @@
 package com.lucas.visorpdf.ui
 
-import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -20,73 +17,41 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.lucas.visorpdf.model.Pdf
 import kotlinx.coroutines.launch
-import java.io.File
 
-@SuppressLint("UseKtx")
+// Pantalla con la lista de imagenes Bitmap mediante LazyColumn
 @Composable
-fun PdfScreen(option: Pdf, navController: NavController) {
-    val context = LocalContext.current
-    var bitmaps by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
+fun PdfScreen(
+    // Pdf seleccionado
+    option: Pdf,
+    // Lista de bitmaps
+    renderedPdfs: Map<String, List<Bitmap>>,
+    navController: NavController
+) {
+    // Obtenemos los bitmaps correspondientes al PDF seleccionado
+    val bitmaps = renderedPdfs[option.name] ?: emptyList()
     val listState = rememberLazyListState()
-    val currentPage by remember { derivedStateOf { listState.firstVisibleItemIndex + 1 } }
     val coroutineScope = rememberCoroutineScope()
-
-    // Archivo temporal
-    val file = remember(option) {
-        val inputStream = context.resources.openRawResource(option.resId)
-        val outputFile = File(context.cacheDir, "${option.name}.pdf")
-        inputStream.use { input ->
-            outputFile.outputStream().use { output -> input.copyTo(output) }
-        }
-        outputFile
-    }
-
-    LaunchedEffect(file) {
-        val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-        val renderer = PdfRenderer(descriptor)
-        val tempBitMaps = mutableListOf<Bitmap>()
-
-        for (i in 0 until renderer.pageCount) {
-            val page = renderer.openPage(i)
-
-            // Aumentamos la resolucion lo maximo posible
-            val scale = 2f
-            val width = (page.width * scale).toInt()
-            val height = (page.height * scale).toInt()
-
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-            page.close()
-            tempBitMaps.add(bitmap)
-        }
-
-        renderer.close()
-        descriptor.close()
-        bitmaps = tempBitMaps
-    }
+    val currentPage by remember { derivedStateOf { listState.firstVisibleItemIndex + 1 } }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // LazyColumn para desplazamiento suave y muestra de paginas correcta
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(bitmaps) { bitmap ->
                 Image(
                     bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Página del PDF",
+                    contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat())
@@ -94,6 +59,21 @@ fun PdfScreen(option: Pdf, navController: NavController) {
             }
         }
 
+        // Column que muestra en la segunda pagina el contenido del resto del PDF
+//        Column(modifier = Modifier.fillMaxSize()) {
+//            for (bitmap in bitmaps) {
+//                Image(
+//                    bitmap = bitmap.asImageBitmap(),
+//                    contentDescription = null,
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat())
+//                        .padding(bottom = 8.dp)
+//                )
+//            }
+//        }
+
+        // Boton para volver a la pantalla de inicio
         FloatingActionButton(
             onClick = { navController.navigate("HomeScreen") },
             contentColor = Color.White,
@@ -105,6 +85,7 @@ fun PdfScreen(option: Pdf, navController: NavController) {
             Icon(Icons.Filled.Home, "Volver a Home")
         }
 
+        // Boton para ir al final del PDF
         FloatingActionButton(
             onClick = { coroutineScope.launch { listState.animateScrollToItem(bitmaps.size - 1) } },
             contentColor = Color.White,
@@ -116,6 +97,7 @@ fun PdfScreen(option: Pdf, navController: NavController) {
             Icon(Icons.Filled.KeyboardArrowDown, "Ir al final")
         }
 
+        // Mostrar el numero de pagina actual y total
         Text(
             text = "$currentPage de ${bitmaps.size}",
             modifier = Modifier

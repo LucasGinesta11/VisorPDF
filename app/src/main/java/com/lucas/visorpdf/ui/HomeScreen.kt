@@ -36,6 +36,7 @@ import com.lucas.visorpdf.model.Pdfs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+// Pantalla de seleccion de PDFs
 fun HomeScreen(navController: NavHostController) {
 
     val context = LocalContext.current
@@ -50,20 +51,29 @@ fun HomeScreen(navController: NavHostController) {
                 title = { Text("PdfVisor", color = Color.White, fontSize = 25.sp) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Blue),
                 actions = {
-                    IconButton(onClick = {navController.navigate("PdfScreen/${selectedOption.name}")}) {
+                    // Visualizar el PDF seleccionado
+                    IconButton(onClick = { navController.navigate("PdfScreen/${selectedOption.name}") }) {
                         Icon(imageVector = Icons.Filled.Done, "Entrar al visor", tint = Color.White)
                     }
-                    IconButton(onClick = {(context as Activity).finish()}) {
-                        Icon(imageVector = Icons.Filled.Close, "Salir de la aplicacion", tint = Color.White)
+                    // Salir de la aplicacion
+                    IconButton(onClick = { (context as Activity).finish() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            "Salir de la aplicacion",
+                            tint = Color.White
+                        )
                     }
                 }
             )
         }, content = { paddingValues ->
-            LazyColumn(modifier = Modifier
-                .selectableGroup()
-                .padding(paddingValues)
-                .fillMaxSize()
-                .background(Color.White)) {
+            // LazyColumn con la lista de PDFs y sus respectivos RadioButtons
+            LazyColumn(
+                modifier = Modifier
+                    .selectableGroup()
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .background(Color.White)
+            ) {
                 items(radioOptions.toList()) { option ->
 
                     Spacer(modifier = Modifier.padding(10.dp))
@@ -80,10 +90,12 @@ fun HomeScreen(navController: NavHostController) {
                     ) {
                         RadioButton(
                             selected = (option == selectedOption),
-                            onClick = null
+                            onClick = null,
                         )
+
                         Text(
                             text = option.name,
+                            modifier = Modifier.padding(start = 8.dp),
                             color = Color.Black
                         )
                     }

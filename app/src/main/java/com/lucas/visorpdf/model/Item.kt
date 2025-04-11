@@ -4,15 +4,17 @@ import com.lucas.visorpdf.R
 
 data class Pdf(val name: String, val resId: Int)
 
+// Lista de pdfs con nombre y ruta
 object Pdfs {
     val list = listOf(
-        Pdf("Tartarín de Tarascón", R.raw.libro),
         Pdf("Animales", R.raw.animales),
+        Pdf("Corazon", R.raw.corazon),
         Pdf("Deporte", R.raw.deporte),
+        Pdf("Android", R.raw.android),
         Pdf("Mecanica", R.raw.mecanica),
-        Pdf("Orbys", R.raw.orbys),
-        Pdf("Corazon", R.raw.corazon)
+        Pdf("Orbys", R.raw.orbys)
     )
 
+    // Metodo para buscar PDFs por nombre
     fun getByName(name: String): Pdf = list.firstOrNull { it.name == name } ?: list.first()
 }
