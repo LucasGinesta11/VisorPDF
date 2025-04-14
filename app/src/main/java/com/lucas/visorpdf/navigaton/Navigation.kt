@@ -16,7 +16,8 @@ fun Navigation(renderedPdfs: Map<String, List<Bitmap>>, navController: NavHostCo
         composable("HomeScreen") {
             HomeScreen(navController)
         }
-        // Pdf al que se navegara una vez seleccionado por su nombre
+        // Pdf al que se navegara una vez seleccionado por su nombre, donde estaran los bitmaps
+        // que se han generado en el render y han sido guardados en el viewModel
         composable("PdfScreen/{option}") { backStackEntry ->
             val optionString = backStackEntry.arguments?.getString("option") ?: ""
             val option = Pdfs.getByName(optionString)

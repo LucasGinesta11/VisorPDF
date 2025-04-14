@@ -12,6 +12,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.VisorPDF"
         tools:targetApi="31">
+        <meta-data
+            android:name="com.google.android.tv.resolution.3840x2160"
+            android:value="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

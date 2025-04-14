@@ -1,5 +1,6 @@
 package com.lucas.visorpdf
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,6 +13,7 @@ import com.lucas.visorpdf.ui.theme.VisorPDFTheme
 import com.lucas.visorpdf.viewModel.PdfViewModel
 
 class MainActivity : ComponentActivity() {
+    @SuppressLint("StateFlowValueCalledInComposition")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

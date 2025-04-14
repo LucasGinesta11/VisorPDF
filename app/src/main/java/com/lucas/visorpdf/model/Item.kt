@@ -9,7 +9,6 @@ object Pdfs {
     val list = listOf(
         Pdf("Animales", R.raw.animales),
         Pdf("Corazon", R.raw.corazon),
-        Pdf("Deporte", R.raw.deporte),
         Pdf("Android", R.raw.android),
         Pdf("Mecanica", R.raw.mecanica),
         Pdf("Orbys", R.raw.orbys)
