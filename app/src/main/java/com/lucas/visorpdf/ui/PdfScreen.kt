@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +15,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -27,62 +27,112 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.lucas.visorpdf.model.Pdf
+import com.lucas.visorpdf.viewModel.PdfViewModel
 import kotlinx.coroutines.launch
 
-// Pantalla con la lista de imagenes Bitmap mediante LazyColumn
 @Composable
 fun PdfScreen(
     option: Pdf,
     renderedPdfs: Map<String, List<Bitmap>>,
-    navController: NavController
+    navController: NavController,
+    viewModel: PdfViewModel
 ) {
+    // Bitmaps de los pdfs divididos por nombre
     val bitmaps = renderedPdfs[option.name] ?: emptyList()
+
+    // Logico de conteo de paginas
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val currentPage by remember { derivedStateOf { listState.firstVisibleItemIndex + 1 } }
 
+    // Total de paginas
+    val totalPages = viewModel.getTotalPages(option.name)
+
+    // Renderiza mas paginas cuando llegue a la penultima cargada
+    val endReached by remember {
+        derivedStateOf {
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val renderedCount = viewModel.renderedPdfs.value[option.name]?.size ?: 0
+            lastVisibleIndex >= renderedCount - 1
+        }
+    }
+
+    // Cuando llegue al final de los bitmaps cargados muestre mas
+    LaunchedEffect(endReached) {
+        if (endReached && bitmaps.size < totalPages) {
+            viewModel.loadMorePages(option.name)
+        }
+    }
+
+    // Box del visor de pdfs
     Box(modifier = Modifier.fillMaxSize()) {
+        // LazyColumn con las imagenes de bitmaps y que ademas ahorra memoria
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(bitmaps) { bitmap ->
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
                 )
             }
         }
 
-        bitmaps.firstOrNull()?.let { firstBitmap ->
-            Text(
-                text = "Resolución: ${firstBitmap.width} x ${firstBitmap.height}",
-                modifier = Modifier.align(Alignment.TopEnd).padding(24.dp),
-                color = Color.Red
-            )
-        }
+        // Uso de Column que no funciona
+//        Column(modifier = Modifier.fillMaxSize()) {
+//            bitmaps.forEach { bitmap ->
+//                Image(
+//                    bitmap = bitmap.asImageBitmap(),
+//                    contentDescription = null,
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(8.dp)
+//                )
+//            }
+//        }
 
+
+        // Resolucion de los bitmaps
+        Text(
+            text = "Resolución: ${bitmaps.first().width} x ${bitmaps.first().height}",
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(24.dp),
+            color = Color.Red
+        )
+
+        // Boton flotante para volver a la lista de pdfs
         FloatingActionButton(
             onClick = { navController.navigate("HomeScreen") },
-            modifier = Modifier.align(Alignment.BottomStart).padding(24.dp),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(24.dp),
             containerColor = Color.Blue,
             contentColor = Color.White
         ) {
             Icon(Icons.Filled.Home, "Volver a Home")
         }
 
+        // Boton flotante para ir a la ultima pagina renderizada
         FloatingActionButton(
-            onClick = { coroutineScope.launch { listState.animateScrollToItem(bitmaps.size - 1) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
+            onClick = {
+                coroutineScope.launch {
+                    listState.animateScrollToItem(bitmaps.lastIndex)
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(24.dp),
             containerColor = Color.Blue,
             contentColor = Color.White
         ) {
             Icon(Icons.Filled.KeyboardArrowDown, "Ir al final")
         }
 
+        // Conteo de paginas de la actual a la ultima ultima del pdf
         Text(
-            text = "$currentPage de ${bitmaps.size}",
-            modifier = Modifier.align(Alignment.TopStart).padding(24.dp),
+            text = "$currentPage de $totalPages",
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(24.dp),
             color = Color.Black
         )
     }

@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     // Mostrar los PDFs renderizados
-                    Navigation(pdfViewModel.renderedPdfs.value, navController)
+                    Navigation(pdfViewModel.renderedPdfs.value, navController, pdfViewModel)
                 }
             }
         }

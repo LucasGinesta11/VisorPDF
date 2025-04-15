@@ -8,9 +8,10 @@ import androidx.navigation.compose.composable
 import com.lucas.visorpdf.model.Pdfs
 import com.lucas.visorpdf.ui.HomeScreen
 import com.lucas.visorpdf.ui.PdfScreen
+import com.lucas.visorpdf.viewModel.PdfViewModel
 
 @Composable
-fun Navigation(renderedPdfs: Map<String, List<Bitmap>>, navController: NavHostController) {
+fun Navigation(renderedPdfs: Map<String, List<Bitmap>>, navController: NavHostController, viewModel: PdfViewModel) {
     // Pantalla principal y a la que se navegara al clickar el boton Home
     NavHost(navController = navController, startDestination = "HomeScreen") {
         composable("HomeScreen") {
@@ -21,7 +22,7 @@ fun Navigation(renderedPdfs: Map<String, List<Bitmap>>, navController: NavHostCo
         composable("PdfScreen/{option}") { backStackEntry ->
             val optionString = backStackEntry.arguments?.getString("option") ?: ""
             val option = Pdfs.getByName(optionString)
-            PdfScreen(option, renderedPdfs, navController)
+            PdfScreen(option, renderedPdfs, navController, viewModel)
         }
     }
 }
