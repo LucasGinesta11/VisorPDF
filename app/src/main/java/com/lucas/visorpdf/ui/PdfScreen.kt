@@ -1,6 +1,5 @@
 package com.lucas.visorpdf.ui
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,12 +17,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.lucas.visorpdf.model.Pdf
@@ -33,12 +35,14 @@ import kotlinx.coroutines.launch
 @Composable
 fun PdfScreen(
     option: Pdf,
-    renderedPdfs: Map<String, List<Bitmap>>,
+    renderedPdfs: Map<String, List<String>>,
     navController: NavController,
     viewModel: PdfViewModel
 ) {
     // Bitmaps de los pdfs divididos por nombre
     val bitmaps = renderedPdfs[option.name] ?: emptyList()
+
+    val imagePaths = renderedPdfs[option.name] ?: emptyList()
 
     // Logico de conteo de paginas
     val listState = rememberLazyListState()
@@ -47,6 +51,14 @@ fun PdfScreen(
 
     // Total de paginas
     val totalPages = viewModel.getTotalPages(option.name)
+    var isLoadingMore by remember { mutableStateOf(false) }
+
+    // Resolucion de la pantalla
+    val context = LocalContext.current
+    val displayMetrics = context.resources.displayMetrics
+
+    val screenWidthPx = displayMetrics.widthPixels
+    val screenHeightPx = displayMetrics.heightPixels
 
     // Renderiza mas paginas cuando llegue a la penultima cargada
     val endReached by remember {
@@ -59,8 +71,10 @@ fun PdfScreen(
 
     // Cuando llegue al final de los bitmaps cargados muestre mas
     LaunchedEffect(endReached) {
-        if (endReached && bitmaps.size < totalPages) {
-            viewModel.loadMorePages(option.name)
+        if (endReached && bitmaps.size < totalPages && !isLoadingMore) {
+            isLoadingMore = true
+            viewModel.loadMorePages(context, option.name)
+            isLoadingMore = false
         }
     }
 
@@ -68,36 +82,28 @@ fun PdfScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // LazyColumn con las imagenes de bitmaps y que ademas ahorra memoria
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            items(bitmaps) { bitmap ->
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = null,
-                )
+            items(imagePaths) { path ->
+                val bitmap = remember(path) {
+                    android.graphics.BitmapFactory.decodeFile(path.toString())
+                }
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = null
+                    )
+                }
             }
         }
 
-        // Uso de Column que no funciona
-//        Column(modifier = Modifier.fillMaxSize()) {
-//            bitmaps.forEach { bitmap ->
-//                Image(
-//                    bitmap = bitmap.asImageBitmap(),
-//                    contentDescription = null,
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .padding(8.dp)
-//                )
-//            }
-//        }
-
-
-        // Resolucion de los bitmaps
+        // Resolucion de la pantalla
         Text(
-            text = "Resolución: ${bitmaps.first().width} x ${bitmaps.first().height}",
+            text = "Resolucion: $screenWidthPx x $screenHeightPx",
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(24.dp),
             color = Color.Red
         )
+
 
         // Boton flotante para volver a la lista de pdfs
         FloatingActionButton(

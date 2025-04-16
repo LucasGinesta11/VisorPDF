@@ -1,6 +1,5 @@
 package com.lucas.visorpdf.navigaton
 
-import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -11,7 +10,7 @@ import com.lucas.visorpdf.ui.PdfScreen
 import com.lucas.visorpdf.viewModel.PdfViewModel
 
 @Composable
-fun Navigation(renderedPdfs: Map<String, List<Bitmap>>, navController: NavHostController, viewModel: PdfViewModel) {
+fun Navigation(renderedPdfs: Map<String, List<String>>, navController: NavHostController, viewModel: PdfViewModel) {
     // Pantalla principal y a la que se navegara al clickar el boton Home
     NavHost(navController = navController, startDestination = "HomeScreen") {
         composable("HomeScreen") {

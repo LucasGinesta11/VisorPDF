@@ -24,13 +24,16 @@ class MainActivity : ComponentActivity() {
 
                 // Se llama a la pantalla de carga si no estan cargados
                 if (pdfViewModel.renderedPdfs.value.isEmpty()) {
-                    PdfRender(viewModel = pdfViewModel) { result ->
-                        // Guardar PDFs renderizados en el ViewModel
-                        pdfViewModel.renderedPdfs.value = result
+                    // Pantalla de carga mientras se renderizan los PDFs
+                    PdfRender(viewModel = pdfViewModel) {
                     }
                 } else {
                     // Mostrar los PDFs renderizados
-                    Navigation(pdfViewModel.renderedPdfs.value, navController, pdfViewModel)
+                    Navigation(
+                        renderedPdfs = pdfViewModel.renderedPdfs.value,
+                        navController = navController,
+                        viewModel = pdfViewModel
+                    )
                 }
             }
         }
