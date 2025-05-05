@@ -4,125 +4,99 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import android.util.LruCache
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.graphics.createBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.lucas.visorpdf.model.Pdfs
+import com.lucas.visorpdf.model.Pdf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 
 class PdfViewModel : ViewModel() {
-
     // Mapa con el nombre de pdfs y la lista de rutas a las imagenes
     val renderedPdfs = mutableStateOf<Map<String, List<String>>>(emptyMap())
 
-    // PdfRenderer que extraen las paginas como bitmaps
-    val renderers = mutableMapOf<String, PdfRenderer>()
-
-    // Archivos abiertos en .pdf para crear PdfRenderer
-    val descriptors = mutableMapOf<String, ParcelFileDescriptor>()
-
-    // Paginas renderizadas
-    val pagesRendered = mutableMapOf<String, Int>()
-
-    // Pdfs renderizados
-    val fullLoadedPdfs = mutableSetOf<String>()
-
-
     // Memoria cache
     val memoryCache =
-        object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 1024 / 8).toInt()) {
+        object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 1024 / 6).toInt()) {
             override fun sizeOf(key: String, value: Bitmap): Int {
                 return value.byteCount / 1024
             }
         }
 
     // Carga de primeras paginas
-    fun loadInitialPages(context: Context, onFinished: (Map<String, List<String>>) -> Unit) {
-        // Corrutinas hasta que se destruya el viewModel
+    fun loadInitialPages(context: Context, pdf: Pdf, onFinished: (Pair<Map<String, List<String>>, Int>) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val renderedMap = mutableMapOf<String, List<String>>()
+            var totalPages = 0
 
-            // Procesamos cada PDF secuencialmente para evitar sobrecarga de memoria
-            Pdfs.list.forEach { pdf ->
-                try {
-                    if (renderedPdfs.value.containsKey(pdf.name)) return@forEach
+            try {
+                clearPdfData(context, pdf.name)
 
-                    // Copiar Pdf al almacenamiento interno
-                    val file = File(context.filesDir, "${pdf.name}.pdf").apply {
-                        parentFile?.mkdirs()
-                    }
-
-                    context.resources.openRawResource(pdf.resId).use { input ->
-                        file.outputStream().use { output -> input.copyTo(output) }
-                    }
-
-                    // Renderizador
-                    val descriptor =
-                        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                    descriptors[pdf.name] = descriptor
-                    val renderer = PdfRenderer(descriptor)
-                    storeRenderer(pdf.name, renderer)
-
-                    // Renderizar las primeras 10 paginas
-                    val renderedPages = renderPages(context, renderer, 0, 10, pdf.name)
-                    renderedMap[pdf.name] = renderedPages
-                    pagesRendered[pdf.name] = renderedPages.size
-
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                val file = File(context.filesDir, "${pdf.name}.pdf").apply {
+                    parentFile?.mkdirs()
                 }
+
+                context.resources.openRawResource(pdf.resId).use { input ->
+                    file.outputStream().use { output -> input.copyTo(output) }
+                }
+
+                val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                val renderer = PdfRenderer(descriptor)
+                totalPages = renderer.pageCount
+
+                val renderedPages = renderPages(context, renderer, 0, minOf(5, totalPages), pdf.name)
+                renderedMap[pdf.name] = renderedPages
+
+                renderer.close()
+                descriptor.close()
+
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
 
-            // Actualizamos el estado una sola vez al final
             renderedPdfs.value = renderedMap
-            onFinished(renderedMap)
+            onFinished(Pair(renderedMap, totalPages))
         }
     }
 
-    // Llamada para cargar otras 10 paginas
+
+    // Llamada para cargar otras 5 paginas
     fun loadMorePages(context: Context, name: String, onFinished: () -> Unit) {
-        if (fullLoadedPdfs.contains(name)) {
-            onFinished()
-            return
-        }
-
         viewModelScope.launch(Dispatchers.IO) {
-            val renderer = renderers[name] ?: run {
-                onFinished()
-                return@launch
-            }
-
-            val currentRendered = renderedPdfs.value[name] ?: emptyList()
-            val currentCount = pagesRendered[name] ?: 0
-            val totalPages = renderer.pageCount
-
-            if (currentCount >= totalPages) {
-                fullLoadedPdfs.add(name)
-                onFinished()
-                return@launch
-            }
-
             try {
-                val pagesToLoad = minOf(10, totalPages - currentCount)
+                val currentRendered = renderedPdfs.value[name] ?: emptyList()
+                val currentCount = currentRendered.size
 
-                // Renderizamos las nuevas paginas
+                // Necesitamos volver a abrir el archivo y el renderer para cargar más páginas
+                val file = File(context.filesDir, "${name}.pdf")
+                val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                val renderer = PdfRenderer(descriptor)
+
+                val totalPages = renderer.pageCount
+
+                if (currentCount >= totalPages) {
+                    renderer.close()
+                    descriptor.close()
+                    onFinished()
+                    return@launch
+                }
+
+                val pagesToLoad = minOf(5, totalPages - currentCount)
                 val newPages = renderPages(context, renderer, currentCount, pagesToLoad, name)
 
                 // Actualizamos el estado
                 val updatedMap = renderedPdfs.value.toMutableMap()
                 updatedMap[name] = currentRendered + newPages
                 renderedPdfs.value = updatedMap
-                pagesRendered[name] = currentCount + newPages.size
 
-                // Verificamos si hemos terminado
-                if (currentCount + pagesToLoad >= totalPages) {
-                    fullLoadedPdfs.add(name)
+                // Cerrar recursos inmediatamente después de renderizar
+                renderer.close()
+                descriptor.close()
 
-                }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -177,17 +151,40 @@ class PdfViewModel : ViewModel() {
         return renderedPaths
     }
 
-    fun storeRenderer(name: String, renderer: PdfRenderer) {
-        renderers[name] = renderer
-        pagesRendered[name] = 0
+    // Elimina todos los datos del PDF
+    fun clearPdfData(context: Context, name: String) {
+        // Limpiar el mapa de PDFs renderizados
+        renderedPdfs.value = renderedPdfs.value.toMutableMap().apply {
+            remove(name)
+        }
+
+        // Limpiar la caché de memoria
+        memoryCache.evictAll()
+
+        // Limpiar archivos en caché de disco
+        val dir = File(context.cacheDir, "pdf_bitmaps/$name")
+        if (dir.exists()) {
+            dir.deleteRecursively()
+        }
     }
 
-    fun getTotalPages(name: String): Int = renderers[name]?.pageCount ?: 0
-
-    override fun onCleared() {
-        super.onCleared()
-        renderers.values.forEach { it.close() }
-        descriptors.values.forEach { it.close() }
+    fun getTotalPages(context: Context, name: String): Int {
+        return try {
+            val file = File(context.filesDir, "${name}.pdf")
+            if (file.exists()) {
+                val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                val renderer = PdfRenderer(descriptor)
+                val count = renderer.pageCount
+                renderer.close()
+                descriptor.close()
+                count
+            } else {
+                Log.d("No existe", "No existe")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.d("Error", "Error")
+        }
     }
 
     fun getBitmapFromCache(key: String): Bitmap? {

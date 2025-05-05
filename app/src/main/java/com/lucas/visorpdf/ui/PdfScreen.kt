@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -24,9 +23,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -39,7 +38,6 @@ import androidx.navigation.NavController
 import com.lucas.visorpdf.model.Pdf
 import com.lucas.visorpdf.viewModel.PdfViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @SuppressLint("FrequentlyChangedStateReadInComposition")
@@ -55,23 +53,20 @@ fun PdfScreen(
         derivedStateOf { renderedPdfs[option.name] ?: emptyList() }
     }
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
-    val totalPages = viewModel.getTotalPages(option.name)
     var isLoadingMore by remember { mutableStateOf(false) }
     var isInitialLoad by remember { mutableStateOf(true) }
-
     var pdfResolution by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var totalPages by remember { mutableIntStateOf(0) } // Ahora es un estado mutable
 
-    // Cargar mas paginas cuando nos acercamos al final
-    LaunchedEffect(listState, imagePaths, isLoadingMore) {
+    // Cargar más páginas cuando nos acercamos al final
+    LaunchedEffect(listState, imagePaths, isLoadingMore, totalPages) {
         snapshotFlow {
             Pair(
                 listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0,
                 imagePaths.size
             )
         }.collect { (lastVisibleIndex, pathCount) ->
-            // Cargamos mas cuando queden 5
-            if (lastVisibleIndex >= pathCount - 5 &&
+            if (lastVisibleIndex >= pathCount - 2 &&
                 pathCount < totalPages &&
                 !isLoadingMore &&
                 !isInitialLoad
@@ -84,87 +79,82 @@ fun PdfScreen(
         }
     }
 
-    // Precarga las imágenes en cache cuando cambia el PDF
+    // Cargar el PDF cuando se entra a la pantalla
     LaunchedEffect(option.name) {
         isInitialLoad = true
-        imagePaths.forEach { path ->
-            if (viewModel.getBitmapFromCache(path) == null) {
-                val bitmap = withContext(Dispatchers.IO) {
-                    // Si no esta en el cache se carga desde el archivo
-                    BitmapFactory.decodeFile(path)
-                }
-                // Y ya se guarda en el cache
-                bitmap?.let { viewModel.putBitmapInCache(path, it) }
+        if (!renderedPdfs.containsKey(option.name)) {
+            viewModel.loadInitialPages(context, option) { (_, pagesCount) ->
+                totalPages = pagesCount // Actualizamos el total de páginas
+                isInitialLoad = false
             }
+        } else {
+            // Si ya estaba cargado, obtenemos el total de páginas
+            totalPages = viewModel.getTotalPages(context, option.name)
+            isInitialLoad = false
         }
-        isInitialLoad = false
+    }
+
+    // Limpiar cuando se sale de la pantalla
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearPdfData(context, option.name)
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(imagePaths, key = { it }) { path ->
+        if (isInitialLoad) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center)
+            )
+        } else {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                items(imagePaths, key = { it }) { path ->
+                    val bitmap = remember(path) { mutableStateOf<Bitmap?>(null) }
 
-                // Usamos un estado derivado para cada bitmap
-                val bitmap = remember(path) { mutableStateOf<Bitmap?>(null) }
+                    LaunchedEffect(path) {
+                        withContext(Dispatchers.IO) {
+                            val cached = viewModel.getBitmapFromCache(path)
+                            val bmp = cached ?: BitmapFactory.decodeFile(path)?.also {
+                                viewModel.putBitmapInCache(path, it)
+                            }
 
-                // Recicla el bitmap cuando ya no esta visible
-                DisposableEffect(path) {
-                    onDispose {
-                        bitmap.value?.recycle()
-                        bitmap.value = null
-                    }
-                }
-
-                LaunchedEffect(path) {
-                    withContext(Dispatchers.IO) {
-                        val cached = viewModel.getBitmapFromCache(path)
-                        val bmp = cached ?: BitmapFactory.decodeFile(path)?.also {
-                            viewModel.putBitmapInCache(path, it)
-                        }
-
-                        if (bmp != null) {
-                            bitmap.value = bmp
-
-                            // Solo actualiza la resolución si aún no se ha definido
-                            if (pdfResolution == null) {
-                                pdfResolution = Pair(bmp.width, bmp.height)
+                            if (bmp != null) {
+                                bitmap.value = bmp
+                                if (pdfResolution == null) {
+                                    pdfResolution = Pair(bmp.width, bmp.height)
+                                }
                             }
                         }
                     }
-                }
 
-                if (bitmap.value != null) {
-                    Image(
-                        bitmap = bitmap.value!!.asImageBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Hasta que se decodifican los bitmaps
-                        CircularProgressIndicator()
+                    if (bitmap.value != null) {
+                        Image(
+                            bitmap = bitmap.value!!.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
-            }
 
-            // Mostrar un indicador cuando se están cargando más páginas
-            if (isLoadingMore) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+                if (isLoadingMore) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             }
@@ -172,7 +162,7 @@ fun PdfScreen(
 
         pdfResolution?.let { (width, height) ->
             Text(
-                text = "Resolucion: $width x $height",
+                text = "Resolución: $width x $height",
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(24.dp),
@@ -180,7 +170,6 @@ fun PdfScreen(
             )
         }
 
-        // Navegar al seleccionador de pdfs
         FloatingActionButton(
             onClick = { navController.navigate("HomeScreen") },
             modifier = Modifier
@@ -192,22 +181,6 @@ fun PdfScreen(
             Icon(Icons.Filled.Home, contentDescription = "Volver a Home")
         }
 
-        // Bajar a la ultima pagina cargada
-        FloatingActionButton(
-            onClick = {
-                coroutineScope.launch {
-                    listState.animateScrollToItem(imagePaths.lastIndex)
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(24.dp),
-            containerColor = Color.Blue,
-            contentColor = Color.White
-        ) {
-            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Ir al final")
-        }
-
         Text(
             text = "${listState.firstVisibleItemIndex + 1} de $totalPages",
             modifier = Modifier
@@ -216,5 +189,4 @@ fun PdfScreen(
             color = Color.Black
         )
     }
-
 }
