@@ -20,7 +20,7 @@ class PdfViewModel : ViewModel() {
     // Mapa con el nombre de pdfs y la lista de rutas a las imagenes
     val renderedPdfs = mutableStateOf<Map<String, List<String>>>(emptyMap())
 
-    // Memoria cache
+    // Memoria cache que guarda las imagenes para no volver a renderizarlas
     val memoryCache =
         object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 1024 / 6).toInt()) {
             override fun sizeOf(key: String, value: Bitmap): Int {
@@ -35,7 +35,7 @@ class PdfViewModel : ViewModel() {
             var totalPages = 0
 
             try {
-                clearPdf(context, pdf.name)
+//                clearPdf(context, pdf.name)
 
                 val file = File(context.filesDir, "${pdf.name}.pdf").apply {
                     parentFile?.mkdirs()
@@ -72,13 +72,13 @@ class PdfViewModel : ViewModel() {
                 val currentRendered = renderedPdfs.value[name] ?: emptyList()
                 val currentCount = currentRendered.size
 
-                // Necesitamos volver a abrir el archivo y el renderer para cargar más páginas
                 val file = File(context.filesDir, "${name}.pdf")
                 val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                 val renderer = PdfRenderer(descriptor)
 
                 val totalPages = renderer.pageCount
 
+                // Final del pdf
                 if (currentCount >= totalPages) {
                     renderer.close()
                     descriptor.close()
@@ -131,12 +131,12 @@ class PdfViewModel : ViewModel() {
                 val targetHeight = (page.height * scale).toInt()
 
                 val bitmap = createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
-                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
 
                 // Guardar la imagen renderizada en disco
                 filePath.parentFile?.mkdirs()
                 filePath.outputStream().use {
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 60, it)
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
                 }
                 renderedPaths.add(filePath.absolutePath)
 
@@ -154,21 +154,21 @@ class PdfViewModel : ViewModel() {
     }
 
     // Elimina todos los datos del PDF
-    fun clearPdf(context: Context, name: String) {
-        // Limpiar el mapa de PDFs renderizados
-        renderedPdfs.value = renderedPdfs.value.toMutableMap().apply {
-            remove(name)
-        }
-
-        // Limpiar la caché de memoria
-        memoryCache.evictAll()
-
-        // Limpiar archivos en caché de disco
-        val dir = File(context.cacheDir, "pdf_bitmaps/$name")
-        if (dir.exists()) {
-            dir.deleteRecursively()
-        }
-    }
+//    fun clearPdf(context: Context, name: String) {
+//        // Limpiar el mapa de PDFs renderizados
+//        renderedPdfs.value = renderedPdfs.value.toMutableMap().apply {
+//            remove(name)
+//        }
+//
+//        // Limpiar la caché de memoria
+//        memoryCache.evictAll()
+//
+//        // Limpiar archivos en caché de disco
+//        val dir = File(context.cacheDir, "pdf_bitmaps/$name")
+//        if (dir.exists()) {
+//            dir.deleteRecursively()
+//        }
+//    }
 
     // Calculo de total de paginas
     fun getTotalPages(context: Context, name: String): Int {

@@ -19,7 +19,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -32,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -56,7 +56,7 @@ fun PdfScreen(
     var isLoadingMore by remember { mutableStateOf(false) }
     var isInitialLoad by remember { mutableStateOf(true) }
     var pdfResolution by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    var totalPages by remember { mutableIntStateOf(0) } // Ahora es un estado mutable
+    var totalPages by remember { mutableIntStateOf(0) }
 
     // Cargar más páginas cuando nos acercamos al final
     LaunchedEffect(listState, imagePaths, isLoadingMore, totalPages) {
@@ -66,7 +66,8 @@ fun PdfScreen(
                 imagePaths.size
             )
         }.collect { (lastVisibleIndex, pathCount) ->
-            if (lastVisibleIndex >= pathCount - 2 &&
+            // Anticipacion de 5 paginas
+            if (lastVisibleIndex >= pathCount - 5 &&
                 pathCount < totalPages &&
                 !isLoadingMore &&
                 !isInitialLoad
@@ -84,7 +85,7 @@ fun PdfScreen(
         isInitialLoad = true
         if (!renderedPdfs.containsKey(option.name)) {
             viewModel.loadInitialPages(context, option) { (_, pagesCount) ->
-                totalPages = pagesCount // Actualizamos el total de páginas
+                totalPages = pagesCount
                 isInitialLoad = false
             }
         } else {
@@ -95,11 +96,11 @@ fun PdfScreen(
     }
 
     // Limpiar cuando se sale de la pantalla
-    DisposableEffect(Unit) {
-        onDispose {
-            viewModel.clearPdf(context, option.name)
-        }
-    }
+//    DisposableEffect(Unit) {
+//        onDispose {
+//            viewModel.clearPdf(context, option.name)
+//        }
+//    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (isInitialLoad) {
@@ -127,13 +128,16 @@ fun PdfScreen(
                         }
                     }
 
+                    // Muestra los bitmaps con Image cuando esten cargados
                     if (bitmap.value != null) {
                         Image(
                             bitmap = bitmap.value!!.asImageBitmap(),
                             contentDescription = null,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            contentScale = ContentScale.Crop
                         )
                     } else {
+                        // Pequeña carga de las paginas
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -145,6 +149,7 @@ fun PdfScreen(
                     }
                 }
 
+                // Carga de mas paginas
                 if (isLoadingMore) {
                     item {
                         Box(
@@ -160,6 +165,7 @@ fun PdfScreen(
             }
         }
 
+        // Resolucion de las paginas
         pdfResolution?.let { (width, height) ->
             Text(
                 text = "Resolución: $width x $height",
@@ -170,6 +176,7 @@ fun PdfScreen(
             )
         }
 
+        // Boton para volver a la lista de pdfs
         FloatingActionButton(
             onClick = { navController.navigate("HomeScreen") },
             modifier = Modifier
@@ -181,6 +188,7 @@ fun PdfScreen(
             Icon(Icons.Filled.Home, contentDescription = "Volver a Home")
         }
 
+        // Total de paginas
         Text(
             text = "${listState.firstVisibleItemIndex + 1} de $totalPages",
             modifier = Modifier
