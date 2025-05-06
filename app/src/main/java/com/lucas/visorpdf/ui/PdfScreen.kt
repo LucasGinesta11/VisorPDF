@@ -97,7 +97,7 @@ fun PdfScreen(
     // Limpiar cuando se sale de la pantalla
     DisposableEffect(Unit) {
         onDispose {
-            viewModel.clearPdfData(context, option.name)
+            viewModel.clearPdf(context, option.name)
         }
     }
 

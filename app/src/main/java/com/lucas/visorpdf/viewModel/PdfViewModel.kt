@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 class PdfViewModel : ViewModel() {
+
     // Mapa con el nombre de pdfs y la lista de rutas a las imagenes
     val renderedPdfs = mutableStateOf<Map<String, List<String>>>(emptyMap())
 
@@ -34,7 +35,7 @@ class PdfViewModel : ViewModel() {
             var totalPages = 0
 
             try {
-                clearPdfData(context, pdf.name)
+                clearPdf(context, pdf.name)
 
                 val file = File(context.filesDir, "${pdf.name}.pdf").apply {
                     parentFile?.mkdirs()
@@ -105,6 +106,7 @@ class PdfViewModel : ViewModel() {
         }
     }
 
+    // Renderiza las paginas de pdfs
     fun renderPages(
         context: Context,
         renderer: PdfRenderer,
@@ -124,7 +126,7 @@ class PdfViewModel : ViewModel() {
 
             val page = renderer.openPage(i)
             try {
-                val targetWidth = 3840
+                val targetWidth = 1920
                 val scale = targetWidth.toFloat() / page.width
                 val targetHeight = (page.height * scale).toInt()
 
@@ -152,7 +154,7 @@ class PdfViewModel : ViewModel() {
     }
 
     // Elimina todos los datos del PDF
-    fun clearPdfData(context: Context, name: String) {
+    fun clearPdf(context: Context, name: String) {
         // Limpiar el mapa de PDFs renderizados
         renderedPdfs.value = renderedPdfs.value.toMutableMap().apply {
             remove(name)
@@ -168,6 +170,7 @@ class PdfViewModel : ViewModel() {
         }
     }
 
+    // Calculo de total de paginas
     fun getTotalPages(context: Context, name: String): Int {
         return try {
             val file = File(context.filesDir, "${name}.pdf")
@@ -187,10 +190,12 @@ class PdfViewModel : ViewModel() {
         }
     }
 
+    // Agrega los bitmaps en cache
     fun getBitmapFromCache(key: String): Bitmap? {
         return memoryCache.get(key)
     }
 
+    // Elimina los bitmaps de cache
     fun putBitmapInCache(key: String, bitmap: Bitmap) {
         memoryCache.put(key, bitmap)
     }
