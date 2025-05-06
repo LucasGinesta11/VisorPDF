@@ -126,7 +126,7 @@ class PdfViewModel : ViewModel() {
 
             val page = renderer.openPage(i)
             try {
-                val targetWidth = 1920
+                val targetWidth = 2500
                 val scale = targetWidth.toFloat() / page.width
                 val targetHeight = (page.height * scale).toInt()
 
