@@ -24,6 +24,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -37,8 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.lucas.visorpdf.model.Pdf
 import com.lucas.visorpdf.viewModel.PdfViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @SuppressLint("FrequentlyChangedStateReadInComposition")
 @Composable
@@ -49,11 +48,15 @@ fun PdfScreen(
     viewModel: PdfViewModel
 ) {
     val context = LocalContext.current
+    // Imagenes renderizadas de cada pdf
     val imagePaths by remember(option.name, renderedPdfs) {
         derivedStateOf { renderedPdfs[option.name] ?: emptyList() }
     }
+    // Estado de scroll
     val listState = rememberLazyListState()
+    // Llamada a cargar otras 5 paginas
     var isLoadingMore by remember { mutableStateOf(false) }
+    // Carga inicial
     var isInitialLoad by remember { mutableStateOf(true) }
     var pdfResolution by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var totalPages by remember { mutableIntStateOf(0) }
@@ -83,17 +86,21 @@ fun PdfScreen(
     // Cargar el PDF cuando se entra a la pantalla
     LaunchedEffect(option.name) {
         isInitialLoad = true
+        // Si no esta renderizado llama a la primera carga
         if (!renderedPdfs.containsKey(option.name)) {
             viewModel.loadInitialPages(context, option) { (_, pagesCount) ->
                 totalPages = pagesCount
                 isInitialLoad = false
             }
-        } else {
-            // Si ya estaba cargado, obtenemos el total de páginas
+            // Si no se sabe el total de paginas se llama al metodo correspondiente
+        } else if (totalPages == 0) {
             totalPages = viewModel.getTotalPages(context, option.name)
+            isInitialLoad = false
+        } else {
             isInitialLoad = false
         }
     }
+
 
     // Limpiar cuando se sale de la pantalla
 //    DisposableEffect(Unit) {
@@ -110,43 +117,42 @@ fun PdfScreen(
         } else {
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 items(imagePaths, key = { it }) { path ->
-                    val bitmap = remember(path) { mutableStateOf<Bitmap?>(null) }
+                    val bitmap by produceState<Bitmap?>(initialValue = null, path) {
+                        // Obtiene desde cache
+                        val cached = viewModel.getBitmapFromCache(path)
+                        // Si no lo decodifica y lo mete
+                        val loadedBitmap = cached ?: BitmapFactory.decodeFile(path)?.also {
+                            viewModel.putBitmapInCache(path, it)
+                        }
+                        value = loadedBitmap
 
-                    LaunchedEffect(path) {
-                        withContext(Dispatchers.IO) {
-                            val cached = viewModel.getBitmapFromCache(path)
-                            val bmp = cached ?: BitmapFactory.decodeFile(path)?.also {
-                                viewModel.putBitmapInCache(path, it)
-                            }
-
-                            if (bmp != null) {
-                                bitmap.value = bmp
-                                if (pdfResolution == null) {
-                                    pdfResolution = Pair(bmp.width, bmp.height)
-                                }
-                            }
+                        // Asigna la resolución solo una vez (cuando aún no está definida)
+                        if (loadedBitmap != null && pdfResolution == null) {
+                            pdfResolution = loadedBitmap.width to loadedBitmap.height
                         }
                     }
 
                     // Muestra los bitmaps con Image cuando esten cargados
-                    if (bitmap.value != null) {
+                    if (bitmap != null) {
                         Image(
-                            bitmap = bitmap.value!!.asImageBitmap(),
+                            bitmap = bitmap!!.asImageBitmap(),
                             contentDescription = null,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth(),
                             contentScale = ContentScale.Crop
                         )
                     } else {
-                        // Pequeña carga de las paginas
+                        // Placeholder mientras se carga el bitmap
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(200.dp),
+                                .height(720.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator()
+                            CircularProgressIndicator(color = Color.Gray)
                         }
                     }
+
                 }
 
                 // Carga de mas paginas

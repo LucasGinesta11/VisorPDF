@@ -131,7 +131,7 @@ class PdfViewModel : ViewModel() {
                 val targetHeight = (page.height * scale).toInt()
 
                 val bitmap = createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
-                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
 
                 // Guardar la imagen renderizada en disco
                 filePath.parentFile?.mkdirs()
@@ -173,7 +173,7 @@ class PdfViewModel : ViewModel() {
     // Calculo de total de paginas
     fun getTotalPages(context: Context, name: String): Int {
         return try {
-            val file = File(context.filesDir, "${name}.pdf")
+            val file = File(context.filesDir, "$name.pdf")
             if (file.exists()) {
                 val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                 val renderer = PdfRenderer(descriptor)
@@ -183,10 +183,12 @@ class PdfViewModel : ViewModel() {
                 count
             } else {
                 Log.d("No existe", "No existe")
+                // 0 como pagina
+                0
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            Log.d("Error", "Error")
+            0
         }
     }
 

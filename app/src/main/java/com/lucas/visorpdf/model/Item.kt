@@ -12,7 +12,7 @@ object Pdfs {
         Pdf("Android", R.raw.android),
         Pdf("Mecanica", R.raw.mecanica),
         Pdf("Orbys", R.raw.orbys),
-        Pdf("Lorem Ipsum", R.raw.lorem)
+        Pdf("Lorem Ipsum", R.raw.lorem),
     )
 
     // Metodo para buscar PDFs por nombre
